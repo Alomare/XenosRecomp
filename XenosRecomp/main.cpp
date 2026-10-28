@@ -114,6 +114,7 @@ int main(int argc, char** argv)
         }
 
         std::atomic<uint32_t> progress = 0;
+        std::atomic<uint32_t> failures = 0;
 
         std::for_each(std::execution::par_unseq, shaders.begin(), shaders.end(), [&](auto& hashShaderPair)
             {
@@ -127,14 +128,26 @@ int main(int argc, char** argv)
 
                 thread_local DxcCompiler dxcCompiler;
 
+                // Release builds compile the asserts out, so report failed
+                // shaders instead of crashing on them.
 #ifdef XENOS_RECOMP_DXIL
                 shader.dxil = dxcCompiler.compile(recompiler.out, recompiler.isPixelShader, recompiler.specConstantsMask != 0, false);
-                assert(shader.dxil != nullptr);
+                if (shader.dxil == nullptr)
+                {
+                    fmt::println("error: shader {:016X} failed to compile to DXIL", hashShaderPair.first);
+                    ++failures;
+                    return;
+                }
                 assert(*(reinterpret_cast<uint32_t *>(shader.dxil->GetBufferPointer()) + 1) != 0 && "DXIL was not signed properly!");
 #endif
 
                 IDxcBlob* spirv = dxcCompiler.compile(recompiler.out, recompiler.isPixelShader, false, true);
-                assert(spirv != nullptr);
+                if (spirv == nullptr)
+                {
+                    fmt::println("error: shader {:016X} failed to compile to SPIR-V", hashShaderPair.first);
+                    ++failures;
+                    return;
+                }
 
                 bool result = smolv::Encode(spirv->GetBufferPointer(), spirv->GetBufferSize(), shader.spirv, smolv::kEncodeFlagStripDebugInfo);
                 assert(result);
@@ -145,6 +158,12 @@ int main(int argc, char** argv)
                 if ((currentProgress % 10) == 0 || (currentProgress == shaders.size() - 1))
                     fmt::println("Recompiling shaders... {}%", currentProgress / float(shaders.size()) * 100.0f);
             });
+
+        if (failures != 0)
+        {
+            fmt::println("{} of {} shaders failed to compile", failures.load(), shaders.size());
+            return 1;
+        }
 
         fmt::println("Creating shader cache...");
 
