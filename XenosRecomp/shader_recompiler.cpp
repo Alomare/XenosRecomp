@@ -634,9 +634,10 @@ void ShaderRecompiler::recompile(const AluInstruction& instr)
 
             default:
             {
+                // Exports to interpolators the shader does not declare go to a
+                // variable nothing reads.
                 auto findResult = interpolators.find(instr.vectorDest);
-                assert(findResult != interpolators.end());
-                exportRegister = findResult->second;
+                exportRegister = findResult != interpolators.end() ? std::string_view(findResult->second) : std::string_view("oUnused");
                 break;
             }
             }
@@ -1466,6 +1467,7 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
         for (auto& [usage, usageIndex] : INTERPOLATORS)
             println("\to{}{} = 0.0;", USAGE_VARIABLES[uint32_t(usage)], usageIndex);
 
+        out += "\tfloat4 oUnused = 0.0;\n";
         out += "\n";
     }
 
