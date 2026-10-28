@@ -91,13 +91,15 @@ int main(int argc, char** argv)
                 auto shaderContainer = reinterpret_cast<const ShaderContainer*>(fileData.get() + i);
                 size_t dataSize = shaderContainer->virtualSize + shaderContainer->physicalSize;
 
-                // Containers built with debug information (flags 0x21, nonzero
-                // fields at 0x1C and 0x20) have a layout the recompiler does
-                // not parse yet.
+                // Containers built with debug information (flags 0x21) use the
+                // fields at 0x1C and 0x20 for a second program's tables, after
+                // the first one's; others have zeros there.
+                const bool debugInformation = (shaderContainer->flags & 0xFF) == 0x21;
                 if ((shaderContainer->flags & 0xFFFFFF00) == 0x102A1100 &&
                     dataSize <= (fileSize - i) &&
-                    shaderContainer->field1C == 0 &&
-                    shaderContainer->field20 == 0)
+                    (debugInformation ?
+                        (shaderContainer->field1C < shaderContainer->virtualSize && shaderContainer->field20 < shaderContainer->virtualSize) :
+                        (shaderContainer->field1C == 0 && shaderContainer->field20 == 0)))
                 {
                     XXH64_hash_t hash = XXH3_64bits(shaderContainer, dataSize);
                     auto shader = shaders.try_emplace(hash);
