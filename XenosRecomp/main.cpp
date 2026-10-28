@@ -2,6 +2,8 @@
 #include "shader_recompiler.h"
 #include "dxc_compiler.h"
 
+#include <fstream>
+
 static std::unique_ptr<uint8_t[]> readAllBytes(const char* filePath, size_t& fileSize)
 {
     FILE* file = fopen(filePath, "rb");
@@ -27,6 +29,7 @@ struct RecompiledShader
     IDxcBlob* dxil = nullptr;
     std::vector<uint8_t> spirv;
     uint32_t specConstantsMask = 0;
+    bool failed = false;
 };
 
 int main(int argc, char** argv)
@@ -88,6 +91,9 @@ int main(int argc, char** argv)
                 auto shaderContainer = reinterpret_cast<const ShaderContainer*>(fileData.get() + i);
                 size_t dataSize = shaderContainer->virtualSize + shaderContainer->physicalSize;
 
+                // Containers built with debug information (flags 0x21, nonzero
+                // fields at 0x1C and 0x20) have a layout the recompiler does
+                // not parse yet.
                 if ((shaderContainer->flags & 0xFFFFFF00) == 0x102A1100 &&
                     dataSize <= (fileSize - i) &&
                     shaderContainer->field1C == 0 &&
@@ -129,12 +135,23 @@ int main(int argc, char** argv)
                 thread_local DxcCompiler dxcCompiler;
 
                 // Release builds compile the asserts out, so report failed
-                // shaders instead of crashing on them.
+                // shaders instead of crashing on them. XENOS_RECOMP_DUMP_FAILED
+                // names a folder to write their HLSL to.
+                auto dumpFailed = [&]()
+                    {
+                        if (const char* folder = std::getenv("XENOS_RECOMP_DUMP_FAILED"))
+                        {
+                            std::ofstream file(std::filesystem::path(folder) / fmt::format("{:016X}.hlsl", hashShaderPair.first));
+                            file << recompiler.out;
+                        }
+                    };
 #ifdef XENOS_RECOMP_DXIL
                 shader.dxil = dxcCompiler.compile(recompiler.out, recompiler.isPixelShader, recompiler.specConstantsMask != 0, false);
                 if (shader.dxil == nullptr)
                 {
                     fmt::println("error: shader {:016X} failed to compile to DXIL", hashShaderPair.first);
+                    dumpFailed();
+                    shader.failed = true;
                     ++failures;
                     return;
                 }
@@ -145,6 +162,8 @@ int main(int argc, char** argv)
                 if (spirv == nullptr)
                 {
                     fmt::println("error: shader {:016X} failed to compile to SPIR-V", hashShaderPair.first);
+                    dumpFailed();
+                    shader.failed = true;
                     ++failures;
                     return;
                 }
@@ -159,11 +178,10 @@ int main(int argc, char** argv)
                     fmt::println("Recompiling shaders... {}%", currentProgress / float(shaders.size()) * 100.0f);
             });
 
+        // The cache leaves failed shaders out; the runtime reports the ones
+        // a game asks for.
         if (failures != 0)
-        {
-            fmt::println("{} of {} shaders failed to compile", failures.load(), shaders.size());
-            return 1;
-        }
+            fmt::println("warning: {} of {} shaders failed to compile and are left out", failures.load(), shaders.size());
 
         fmt::println("Creating shader cache...");
 
@@ -174,8 +192,13 @@ int main(int argc, char** argv)
         std::vector<uint8_t> dxil;
         std::vector<uint8_t> spirv;
 
+        size_t entryCount = 0;
         for (auto& [hash, shader] : shaders)
         {
+            if (shader.failed)
+                continue;
+
+            ++entryCount;
             f.println("\t{{ 0x{:X}, {}, {}, {}, {}, {} }},",
                 hash, dxil.size(), (shader.dxil != nullptr) ? shader.dxil->GetBufferSize() : 0, spirv.size(), shader.spirv.size(), shader.specConstantsMask);
 
@@ -222,7 +245,7 @@ int main(int argc, char** argv)
 
         f.println("const size_t g_spirvCacheCompressedSize = {};", spirvCompressed.size());
         f.println("const size_t g_spirvCacheDecompressedSize = {};", spirv.size());
-        f.println("const size_t g_shaderCacheEntryCount = {};", shaders.size());
+        f.println("const size_t g_shaderCacheEntryCount = {};", entryCount);
 
         writeAllBytes(output, f.out.data(), f.out.size());
     }
