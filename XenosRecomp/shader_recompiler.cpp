@@ -773,7 +773,9 @@ void ShaderRecompiler::recompile(const AluInstruction& instr)
             break;
 
         case AluVectorOpcode::Cube:
-            print("cube(r{}, cubeMapData)", instr.src1Register);
+            // The register field's top bits are the absolute value flag and
+            // more, as for the other sources.
+            print("cube(r{}, cubeMapData)", instr.src1Register & 0x3F);
             break;
 
         case AluVectorOpcode::Max4:
@@ -1704,11 +1706,15 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
                     }
                     else
                     {
-                        auto findResult = boolConstants.find(cfInstr.condJmp.boolAddress);
+                        // Boolean constants 0-127 belong to vertex shaders and
+                        // 128-255 to pixel shaders; constant tables number
+                        // each stage's from 0.
+                        const uint32_t boolIndex = uint32_t(cfInstr.condJmp.boolAddress) & 127;
+                        auto findResult = boolConstants.find(boolIndex);
                         if (findResult != boolConstants.end())
                             println("if ((g_Booleans & {}) {}= 0)", findResult->second, cfInstr.condJmp.condition ^ simpleControlFlow ? "!" : "=");
                         else
-                            println("if (b{} {}= 0)", uint32_t(cfInstr.condJmp.boolAddress), cfInstr.condJmp.condition ^ simpleControlFlow ? "!" : "=");
+                            println("if ((g_Booleans & (1 << {})) {}= 0)", boolIndex + (isPixelShader ? 16 : 0), cfInstr.condJmp.condition ^ simpleControlFlow ? "!" : "=");
                     }
 
                     if (simpleControlFlow)
