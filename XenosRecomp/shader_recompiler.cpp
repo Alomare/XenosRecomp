@@ -94,6 +94,12 @@ static constexpr DeclUsageLocation USAGE_LOCATIONS[] =
     { DeclUsage::TexCoord, 6, 14 },
     { DeclUsage::TexCoord, 7, 15 },
     { DeclUsage::Position, 1, 15 },
+    // Web of Shadows: a morphing vertex shader reads POSITION1-POSITION4.
+    // Locations past 15 need maxVertexInputAttributes > 16 (32 on Adreno and
+    // desktop GPUs).
+    { DeclUsage::Position, 2, 16 },
+    { DeclUsage::Position, 3, 17 },
+    { DeclUsage::Position, 4, 18 },
 };
 
 static constexpr std::pair<DeclUsage, size_t> INTERPOLATORS[] =
@@ -115,7 +121,10 @@ static constexpr std::pair<DeclUsage, size_t> INTERPOLATORS[] =
     { DeclUsage::TexCoord, 14 },
     { DeclUsage::TexCoord, 15 },
     { DeclUsage::Color, 0 },
-    { DeclUsage::Color, 1 }
+    { DeclUsage::Color, 1 },
+    // Web of Shadows passes a normal between stages in some shaders. Appended
+    // so the locations of the others stay the same.
+    { DeclUsage::Normal, 0 }
 };
 
 static constexpr std::string_view TEXTURE_DIMENSIONS[] = 
