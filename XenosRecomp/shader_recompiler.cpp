@@ -356,6 +356,8 @@ void ShaderRecompiler::recompile(const TextureFetchInstruction& instr, bool bicu
     {
     case TextureDimension::Texture2D:
         print(", float2({}, {})", instr.offsetX * 0.5f, instr.offsetY * 0.5f);
+        if (instr.opcode == FetchOpcode::TextureFetch && instr.texCoordDenorm)
+            print(", ((g_ScaledTextures >> {}) & 1) != 0 ? g_FrameScale : float2(1.0, 1.0)", instr.constIndex);
         break;
     case TextureDimension::TextureCube:
         out += ", cubeMapData";
@@ -1487,7 +1489,7 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
             print("\tfloat4 r{} = ", i);
             if (isPixelShader && i == ((shader->fieldC >> 8) & 0xFF))
             {
-                out += "float4((iPos.xy - 0.5) * float2(iFace ? 1.0 : -1.0, 1.0), 0.0, 0.0);\n";
+                out += "float4((iPos.xy / g_TargetScale - 0.5) * float2(iFace ? 1.0 : -1.0, 1.0), 0.0, 0.0);\n";
             }
         #ifdef UNLEASHED_RECOMP
             else if (!isPixelShader && hasIndexCount && i == 0)

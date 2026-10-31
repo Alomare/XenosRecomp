@@ -30,6 +30,9 @@ struct PushConstants
 #define g_SwappedTexcoords         vk::RawBufferLoad<uint>(g_PushConstants.SharedConstants + 260)
 #define g_HalfPixelOffset          vk::RawBufferLoad<float2>(g_PushConstants.SharedConstants + 264)
 #define g_AlphaThreshold           vk::RawBufferLoad<float>(g_PushConstants.SharedConstants + 272)
+#define g_ScaledTextures           vk::RawBufferLoad<uint>(g_PushConstants.SharedConstants + 276)
+#define g_TargetScale              vk::RawBufferLoad<float2>(g_PushConstants.SharedConstants + 280)
+#define g_FrameScale               vk::RawBufferLoad<float2>(g_PushConstants.SharedConstants + 288)
 
 [[vk::constant_id(0)]] const uint g_SpecConstants = 0;
 
@@ -41,7 +44,10 @@ struct PushConstants
     uint g_Booleans : packoffset(c16.x); \
     uint g_SwappedTexcoords : packoffset(c16.y); \
     float2 g_HalfPixelOffset : packoffset(c16.z); \
-    float g_AlphaThreshold : packoffset(c17.x);
+    float g_AlphaThreshold : packoffset(c17.x); \
+    uint g_ScaledTextures : packoffset(c17.y); \
+    float2 g_TargetScale : packoffset(c17.z); \
+    float2 g_FrameScale : packoffset(c18.x);
 
 uint g_SpecConstants();
 
@@ -66,10 +72,11 @@ float4 tfetch2D(uint resourceDescriptorIndex, uint samplerDescriptorIndex, float
 }
 
 // For fetches whose coordinates count texels rather than run from 0 to 1.
-float4 tfetch2DUnnormalized(uint resourceDescriptorIndex, uint samplerDescriptorIndex, float2 texCoord, float2 offset)
+// Unnormalized coordinates count the console's texels; a render target's copy can have more.
+float4 tfetch2DUnnormalized(uint resourceDescriptorIndex, uint samplerDescriptorIndex, float2 texCoord, float2 offset, float2 scale)
 {
     Texture2D<float4> texture = g_Texture2DDescriptorHeap[resourceDescriptorIndex];
-    return tfetch2D(resourceDescriptorIndex, samplerDescriptorIndex, texCoord / getTexture2DDimensions(texture), offset);
+    return tfetch2D(resourceDescriptorIndex, samplerDescriptorIndex, texCoord * scale / getTexture2DDimensions(texture), offset);
 }
 
 float2 getWeights2D(uint resourceDescriptorIndex, uint samplerDescriptorIndex, float2 texCoord, float2 offset)
