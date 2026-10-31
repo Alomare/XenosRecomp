@@ -343,7 +343,13 @@ void ShaderRecompiler::recompile(const TextureFetchInstruction& instr, bool bicu
     if (instr.opcode == FetchOpcode::TextureFetch && instr.dimension == TextureDimension::Texture2D && instr.texCoordDenorm)
         out += "Unnormalized";
 
-    print("({0}_Texture{1}DescriptorIndex, {0}_SamplerDescriptorIndex, ", constNamePtr, dimension);
+    // A fetch can overrule the fetch constant's point or linear filtering. Each sampler
+    // comes as a block of descriptors: as the constant says, then these four variants.
+    std::string samplerVariant;
+    if (instr.opcode == FetchOpcode::TextureFetch && instr.magFilter <= 1 && instr.minFilter <= 1)
+        samplerVariant = fmt::format(" + {}", 1 + ((instr.minFilter << 1) | instr.magFilter));
+
+    print("({0}_Texture{1}DescriptorIndex, {0}_SamplerDescriptorIndex{2}, ", constNamePtr, dimension, samplerVariant);
     printSrcRegister(componentCount);
 
     switch (instr.dimension)
