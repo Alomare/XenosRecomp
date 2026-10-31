@@ -340,6 +340,9 @@ void ShaderRecompiler::recompile(const TextureFetchInstruction& instr, bool bicu
         out += "Bicubic";
 #endif
 
+    if (instr.opcode == FetchOpcode::TextureFetch && instr.dimension == TextureDimension::Texture2D && instr.texCoordDenorm)
+        out += "Unnormalized";
+
     print("({0}_Texture{1}DescriptorIndex, {0}_SamplerDescriptorIndex, ", constNamePtr, dimension);
     printSrcRegister(componentCount);
 

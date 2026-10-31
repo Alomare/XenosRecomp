@@ -65,6 +65,13 @@ float4 tfetch2D(uint resourceDescriptorIndex, uint samplerDescriptorIndex, float
     return texture.Sample(g_SamplerDescriptorHeap[samplerDescriptorIndex], texCoord + offset / getTexture2DDimensions(texture));
 }
 
+// For fetches whose coordinates count texels rather than run from 0 to 1.
+float4 tfetch2DUnnormalized(uint resourceDescriptorIndex, uint samplerDescriptorIndex, float2 texCoord, float2 offset)
+{
+    Texture2D<float4> texture = g_Texture2DDescriptorHeap[resourceDescriptorIndex];
+    return tfetch2D(resourceDescriptorIndex, samplerDescriptorIndex, texCoord / getTexture2DDimensions(texture), offset);
+}
+
 float2 getWeights2D(uint resourceDescriptorIndex, uint samplerDescriptorIndex, float2 texCoord, float2 offset)
 {
     Texture2D<float4> texture = g_Texture2DDescriptorHeap[resourceDescriptorIndex];
