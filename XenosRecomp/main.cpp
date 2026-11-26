@@ -134,7 +134,9 @@ int main(int argc, char** argv)
 
                 shader.specConstantsMask = recompiler.specConstantsMask;
 
-                thread_local DxcCompiler dxcCompiler;
+                // Never freed: a worker thread ends while the process exits, and its destructor would call into
+                // the DXC library after the library's own state is gone (a crash at exit on Linux).
+                thread_local DxcCompiler* dxcCompiler = new DxcCompiler();
 
                 // Release builds compile the asserts out, so report failed
                 // shaders instead of crashing on them. XENOS_RECOMP_DUMP_FAILED
@@ -148,7 +150,7 @@ int main(int argc, char** argv)
                         }
                     };
 #ifdef XENOS_RECOMP_DXIL
-                shader.dxil = dxcCompiler.compile(recompiler.out, recompiler.isPixelShader, recompiler.specConstantsMask != 0, false);
+                shader.dxil = dxcCompiler->compile(recompiler.out, recompiler.isPixelShader, recompiler.specConstantsMask != 0, false);
                 if (shader.dxil == nullptr)
                 {
                     fmt::println("error: shader {:016X} failed to compile to DXIL", hashShaderPair.first);
@@ -160,7 +162,7 @@ int main(int argc, char** argv)
                 assert(*(reinterpret_cast<uint32_t *>(shader.dxil->GetBufferPointer()) + 1) != 0 && "DXIL was not signed properly!");
 #endif
 
-                IDxcBlob* spirv = dxcCompiler.compile(recompiler.out, recompiler.isPixelShader, false, true);
+                IDxcBlob* spirv = dxcCompiler->compile(recompiler.out, recompiler.isPixelShader, false, true);
                 if (spirv == nullptr)
                 {
                     fmt::println("error: shader {:016X} failed to compile to SPIR-V", hashShaderPair.first);
