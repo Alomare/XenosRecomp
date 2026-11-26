@@ -124,8 +124,16 @@ int main(int argc, char** argv)
         std::atomic<uint32_t> progress = 0;
         std::atomic<uint32_t> failures = 0;
 
-        std::for_each(std::execution::par_unseq, shaders.begin(), shaders.end(), [&](auto& hashShaderPair)
+        // libstdc++ runs a parallel algorithm on one thread when the iterators are not random access, which a
+        // std::map's are not, so the loop walks a vector of the map's entries.
+        std::vector<decltype(&*shaders.begin())> shaderEntries;
+        shaderEntries.reserve(shaders.size());
+        for (auto& entry : shaders)
+            shaderEntries.push_back(&entry);
+
+        std::for_each(std::execution::par_unseq, shaderEntries.begin(), shaderEntries.end(), [&](auto* entry)
             {
+                auto& hashShaderPair = *entry;
                 auto& shader = hashShaderPair.second;
 
                 thread_local ShaderRecompiler recompiler;
