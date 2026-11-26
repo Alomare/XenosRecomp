@@ -39,6 +39,17 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "Ap
     endif()
 endif()
 
+# libstdc++ runs std::execution policies on threads only through Intel TBB; without it every shader is
+# compiled on one thread.
+if (NOT MSVC AND NOT LIBCPP)
+    find_package(TBB QUIET)
+    if (TBB_FOUND)
+        target_link_libraries(XenosRecomp PRIVATE TBB::tbb)
+    else()
+        message(WARNING "TBB not found: XenosRecomp will compile shaders on one thread (install libtbb-dev or tbb-devel)")
+    endif()
+endif()
+
 if (WIN32)
     target_compile_definitions(XenosRecomp PRIVATE _CRT_SECURE_NO_WARNINGS)
     add_custom_command(TARGET XenosRecomp POST_BUILD
